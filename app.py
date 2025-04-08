@@ -3,23 +3,35 @@ from docx import Document
 import pandas as pd
 import io
 
+def clean_text(text):
+    """Utility function to clean text by removing unwanted characters."""
+    return text.replace("â€œ", "").replace("â€", "").replace("\"", "").strip()
+
 def read_docx(file):
     """Read a .docx file from a file-like object and return contents as a structured list."""
     doc = Document(file)
     data = []
-    headers_found = False
     headers = []
+    headers_found = False
 
     for table in doc.tables:
         for i, row in enumerate(table.rows):
-            text = (cell.text.strip() for cell in row.cells)
-            if i == 0 or not headers_found:  # Assume the first row or the row after a header is found are headers
-                headers = tuple(text)
+            row_data = []
+            for cell in row.cells:
+                text = clean_text(cell.text)
+                if i == 0 or not headers_found:  # Assuming first row is headers
+                    # Check if text is enclosed in quotes indicating a header
+                    if text.startswith("“") and text.endswith("”"):
+                        headers.append(clean_text(text))  # Clean and add to headers
+                    else:
+                        headers.append(text)
+                else:
+                    row_data.append(text)
+            if i == 0 or not headers_found:
                 headers_found = True
             else:
-                row_data = dict(zip(headers, text))
-                if any(row_data.values()):  # Only add rows that have data
-                    data.append(row_data)
+                if row_data:  # Only append if row_data is not empty
+                    data.append(dict(zip(headers, row_data)))
 
     return data
 
