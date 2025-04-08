@@ -1,0 +1,30 @@
+# Filename: app.py
+
+import streamlit as st
+import os
+
+def save_results(contents, filename, folder='processed_files'):
+    """ Save the processed results to a file """
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    path = os.path.join(folder, filename)
+    with open(path, 'w') as file:
+        file.write(contents)
+    return path
+
+def process_file(contents):
+    """ Process contents of the file, example: count lines """
+    lines = contents.splitlines()
+    return f"Processed File: {len(lines)} lines."
+
+st.title('TXT File Processor')
+uploaded_file = st.file_uploader("Choose a TXT file", type="txt")
+
+if uploaded_file is not None:
+    contents = uploaded_file.getvalue().decode("utf-8")
+    result = process_file(contents)
+    st.write(result)
+    # Save the results to a file
+    filename = f"result_{uploaded_file.name}"
+    save_path = save_results(contents, filename)
+    st.success(f'File processed and saved to {save_path}')
