@@ -1,5 +1,5 @@
-# Filename: requirements.txt
-
 streamlit
-python-docx
 pandas
+python-docx
+openpyxl
+xlsxwriter
