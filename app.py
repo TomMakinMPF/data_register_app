@@ -1,54 +1,61 @@
-# Filename: app.py
-
 import streamlit as st
-import pandas as pd
 from docx import Document
-import os
+import pandas as pd
+import io
 
-def read_docx(file_path):
-    """Read a .docx file from a path and return contents as a structured list."""
-    doc = Document(file_path)
+def read_docx(file):
+    """Read a .docx file from a file-like object and return contents as a structured list."""
+    doc = Document(file)
     data = []
+    headers_found = False
+    headers = []
+
     for table in doc.tables:
-        headers = []
-        row_data = {}
-        for row in table.rows:
-            for cell_index, cell in enumerate(row.cells):
-                text = cell.text.strip()
-                if text.startswith("“") and text.endswith("”"):  # Identify headers
-                    headers.append(text.strip("“”"))
-                elif headers and cell_index < len(headers):
-                    row_data[headers[cell_index]] = text
-            if row_data:
-                data.append(row_data.copy())  # Append the copy of the row_data to data
-                row_data.clear()  # Clear row_data for the next set of data
+        for i, row in enumerate(table.rows):
+            text = (cell.text.strip() for cell in row.cells)
+            if i == 0 or not headers_found:  # Assume the first row or the row after a header is found are headers
+                headers = tuple(text)
+                headers_found = True
+            else:
+                row_data = dict(zip(headers, text))
+                if any(row_data.values()):  # Only add rows that have data
+                    data.append(row_data)
+
     return data
 
-def save_to_csv(data, filename, folder='processed_files'):
-    """Convert list of dictionaries to CSV and save to file."""
-    if not os.path.exists(folder):
-        os.makedirs(folder)
-    df = pd.DataFrame(data)
-    path = os.path.join(folder, filename)
-    df.to_csv(path, index=False)
-    return path
-
-def process_template_and_download():
-    file_path = 'path_to_your_ISR_template.docx'  # Path to your ISR template
-    data = read_docx(file_path)
+def save_to_csv(data, filename="output.csv"):
+    """Convert list of dictionaries to CSV and save to a file-like object."""
     if data:
-        csv_full_name = "Test_Data_Register.csv"
-        result_path = save_to_csv(data, csv_full_name)
-        st.success(f'CSV file created successfully at {result_path}')
-        return result_path
-    else:
-        st.error("No data extracted from the document.")
-        return None
+        df = pd.DataFrame(data)
+        csv = df.to_csv(index=False).encode('utf-8')
+        return csv
+    return None
 
-st.title('ISR Template Processor')
+# Streamlit user interface
+st.title('ISR Document to CSV Converter')
+st.write('Upload your ISR DOCX file and convert its content to a CSV file.')
 
-if st.button('Process ISR Template'):
-    result_path = process_template_and_download()
-    if result_path:
-        with open(result_path, "rb") as file:
-            st.download_button(label="Download CSV", data=file, file_name=result_path)
+uploaded_file = st.file_uploader("Choose a DOCX file", type="docx")
+
+if uploaded_file is not None:
+    with st.spinner('Processing...'):
+        try:
+            # Read the document
+            file_data = read_docx(uploaded_file)
+            
+            # Generate CSV from data
+            if file_data:
+                csv_file = save_to_csv(file_data)
+                if csv_file:
+                    st.success('Conversion successful! Download your CSV below.')
+                    st.download_button(label="Download CSV",
+                                       data=csv_file,
+                                       file_name="processed_data.csv",
+                                       mime='text/csv')
+                else:
+                    st.error('No data could be extracted and converted to CSV.')
+            else:
+                st.error('The document appears to be empty or the format is not recognized.')
+        
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
