@@ -35,17 +35,20 @@ def read_docx(file):
 
     return data
 
-def save_to_csv(data, filename="output.csv"):
-    """Convert list of dictionaries to CSV and save to a file-like object."""
+def save_to_excel(data, filename="output.xlsx"):
+    """Convert list of dictionaries to an Excel file and save to a file-like object."""
     if data:
         df = pd.DataFrame(data)
-        csv = df.to_csv(index=False).encode('utf-8')
-        return csv
+        # Using an in-memory bytes buffer to store Excel file
+        excel_file = io.BytesIO()
+        df.to_excel(excel_file, index=False, engine='xlsxwriter')
+        excel_file.seek(0)  # Go to the start of the stream
+        return excel_file
     return None
 
 # Streamlit user interface
-st.title('ISR Document to CSV Converter')
-st.write('Upload your ISR DOCX file and convert its content to a CSV file.')
+st.title('ISR Document to Excel Converter')
+st.write('Upload your ISR DOCX file and convert its content to an Excel file.')
 
 uploaded_file = st.file_uploader("Choose a DOCX file", type="docx")
 
@@ -55,17 +58,17 @@ if uploaded_file is not None:
             # Read the document
             file_data = read_docx(uploaded_file)
             
-            # Generate CSV from data
+            # Generate Excel from data
             if file_data:
-                csv_file = save_to_csv(file_data)
-                if csv_file:
-                    st.success('Conversion successful! Download your CSV below.')
-                    st.download_button(label="Download CSV",
-                                       data=csv_file,
-                                       file_name="processed_data.csv",
-                                       mime='text/csv')
+                excel_file = save_to_excel(file_data)
+                if excel_file:
+                    st.success('Conversion successful! Download your Excel file below.')
+                    st.download_button(label="Download Excel",
+                                       data=excel_file,
+                                       file_name="processed_data.xlsx",
+                                       mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 else:
-                    st.error('No data could be extracted and converted to CSV.')
+                    st.error('No data could be extracted and converted to Excel.')
             else:
                 st.error('The document appears to be empty or the format is not recognized.')
         
