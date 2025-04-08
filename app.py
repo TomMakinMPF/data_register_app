@@ -5,9 +5,9 @@ import pandas as pd
 from docx import Document
 import os
 
-def read_docx(file):
-    """Read a .docx file and return contents as a structured list."""
-    doc = Document(file)
+def read_docx(file_path):
+    """Read a .docx file from a path and return contents as a structured list."""
+    doc = Document(file_path)
     data = []
     for table in doc.tables:
         headers = []
@@ -33,14 +33,22 @@ def save_to_csv(data, filename, folder='processed_files'):
     df.to_csv(path, index=False)
     return path
 
-st.title('ISR Word Document to CSV Processor')
-uploaded_file = st.file_uploader("Upload a DOCX file", type="docx")
-
-if uploaded_file is not None:
-    data = read_docx(uploaded_file)
+def process_template_and_download():
+    file_path = 'path_to_your_ISR_template.docx'  # Path to your ISR template
+    data = read_docx(file_path)
     if data:
-        result_path = save_to_csv(data, f"processed_{uploaded_file.name}.csv")
+        csv_full_name = "Test_Data_Register.csv"
+        result_path = save_to_csv(data, csv_full_name)
         st.success(f'CSV file created successfully at {result_path}')
-        st.download_button(label="Download CSV", data=open(result_path, "rb"), file_name=result_path)
+        return result_path
     else:
         st.error("No data extracted from the document.")
+        return None
+
+st.title('ISR Template Processor')
+
+if st.button('Process ISR Template'):
+    result_path = process_template_and_download()
+    if result_path:
+        with open(result_path, "rb") as file:
+            st.download_button(label="Download CSV", data=file, file_name=result_path)
