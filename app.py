@@ -10,13 +10,18 @@ def read_docx(file):
     doc = Document(file)
     data = []
     for table in doc.tables:
-        for i, row in enumerate(table.rows):
-            text = (cell.text for cell in row.cells)
-            if i == 0:
-                keys = tuple(text)
-                continue
-            row_data = dict(zip(keys, text))
-            data.append(row_data)
+        headers = []
+        row_data = {}
+        for row in table.rows:
+            for cell_index, cell in enumerate(row.cells):
+                text = cell.text.strip()
+                if text.startswith("“") and text.endswith("”"):  # Identify headers
+                    headers.append(text.strip("“”"))
+                elif headers and cell_index < len(headers):
+                    row_data[headers[cell_index]] = text
+            if row_data:
+                data.append(row_data.copy())  # Append the copy of the row_data to data
+                row_data.clear()  # Clear row_data for the next set of data
     return data
 
 def save_to_csv(data, filename, folder='processed_files'):
@@ -28,7 +33,7 @@ def save_to_csv(data, filename, folder='processed_files'):
     df.to_csv(path, index=False)
     return path
 
-st.title('Word Document to CSV Processor')
+st.title('ISR Word Document to CSV Processor')
 uploaded_file = st.file_uploader("Upload a DOCX file", type="docx")
 
 if uploaded_file is not None:
