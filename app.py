@@ -5,7 +5,16 @@ import io
 
 def clean_text(text):
     """Utility function to clean text by removing unwanted characters and trimming."""
-    return text.strip().replace("{", "").replace("}", "").replace("“", "").replace("”", "").replace("\"", "")
+    return text.strip().replace("“", "").replace("”", "").replace("\"", "")
+
+def placeholder_filter(text):
+    """Check if the text contains placeholder and extract the content within '{}'."""
+    if '{' in text and '}' in text:
+        # Extracting text within the first pair of '{}'
+        start = text.find('{') + 1
+        end = text.find('}', start)
+        return text[start:end].strip()
+    return None
 
 def read_docx(file):
     """Read a .docx file and extract data structured by tables, focusing on specific placeholders."""
@@ -15,23 +24,24 @@ def read_docx(file):
     # Process each table in the document
     for table in doc.tables:
         current_data = {}
-        headers = [clean_text(cell.text) for cell in table.rows[0].cells]  # Assume first row is headers
+        headers = []
 
-        for row in table.rows[1:]:  # Skip header row
+        for row in table.rows:
             for idx, cell in enumerate(row.cells):
-                if idx >= len(headers):  # Avoid index error if there are more cells than headers
-                    continue
-                key = headers[idx]
-                value_list = [clean_text(x) for x in cell.text.split('\n')]  # Split values by new lines
-                # Append values or create a list of values under each header
-                if key in current_data:
-                    current_data[key].extend(value_list)
-                else:
-                    current_data[key] = value_list
+                extracted_text = placeholder_filter(cell.text)
+                if extracted_text:
+                    if idx >= len(headers):
+                        headers.append(extracted_text)  # Treat extracted placeholders as headers if they fit
+                    else:
+                        # Assuming each row after headers is data corresponding to those headers
+                        if headers[idx] in current_data:
+                            current_data[headers[idx]].append(extracted_text)
+                        else:
+                            current_data[headers[idx]] = [extracted_text]
 
-        # Append the dictionary of the current table to the data list
-        if current_data:
-            data.append(current_data)
+        if current_data:  # If data has been collected for current table
+            flattened_data = {k: ' '.join(v) for k, v in current_data.items()}  # Flatten lists to strings
+            data.append(flattened_data)
 
     return data
 
@@ -47,7 +57,7 @@ def save_to_excel(data, filename="output.xlsx"):
 
 # Streamlit user interface
 st.title('ISR Document to Excel Converter')
-st.write('Upload your ISR DOCX file and convert its content to an Excel file, with each table as a new row.')
+st.write('Upload your ISR DOCX file and convert its content to an Excel file, focusing on placeholders within {}.')
 
 uploaded_file = st.file_uploader("Choose a DOCX file", type="docx")
 
