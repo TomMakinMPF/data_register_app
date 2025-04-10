@@ -5,24 +5,40 @@ import io
 
 def clean_text(text):
     """Utility function to clean text by removing unwanted characters and trimming."""
-    return text.strip().replace("“", "").replace("”", "").replace("\"", "").replace("{", "").replace("}", "")
+    return text.strip().replace("“", "").replace("”", "").replace("\"", "")
 
 def read_docx(file):
-    """Read a .docx file and extract data structured by tables, focusing on proper row and column distribution."""
+    """Read a .docx file and extract data structured by sections or pages."""
     doc = Document(file)
     data = []
+    current_section = {}
+    section_headers = set()
 
     # Process each table in the document
     for table in doc.tables:
-        headers = [clean_text(cell.text) for cell in table.rows[0].cells]  # Assume first row is headers
-        for row in table.rows[1:]:  # Start processing data rows
-            row_data = {}
-            for idx, cell in enumerate(row.cells):
-                if idx < len(headers):  # Ensure there are no out-of-range errors
-                    header = headers[idx]
-                    row_data[header] = clean_text(cell.text)
-            if row_data:
-                data.append(row_data)
+        for row in table.rows:
+            for cell in row.cells:
+                text = clean_text(cell.text)
+                # Splitting entries that appear to be key-value based
+                if ':' in text:
+                    key, value = map(clean_text, text.split(':', 1))
+                else:
+                    key, value = text, None
+
+                if key in section_headers:
+                    # If key is repeated, start a new section
+                    if current_section:
+                        data.append(current_section)
+                    current_section = {}
+                    section_headers.clear()
+
+                current_section[key] = value if value else key
+                section_headers.add(key)
+
+        # Append the last section if not empty
+        if current_section:
+            data.append(current_section)
+            current_section = {}  # Reset for the next table
 
     return data
 
@@ -38,7 +54,7 @@ def save_to_excel(data, filename="output.xlsx"):
 
 # Streamlit user interface
 st.title('ISR Document to Excel Converter')
-st.write('Upload your ISR DOCX file and convert its content to an Excel file, organized by distinct rows and columns.')
+st.write('Upload your ISR DOCX file and convert its content to an Excel file, organized by distinct sections.')
 
 uploaded_file = st.file_uploader("Choose a DOCX file", type="docx")
 
