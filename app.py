@@ -5,43 +5,24 @@ import io
 
 def clean_text(text):
     """Utility function to clean text by removing unwanted characters and trimming."""
-    return text.strip().replace("“", "").replace("”", "").replace("\"", "")
-
-def placeholder_filter(text):
-    """Check if the text contains placeholder and extract the content within '{}'."""
-    if '{' in text and '}' in text:
-        # Extracting text within the first pair of '{}'
-        start = text.find('{') + 1
-        end = text.find('}', start)
-        return text[start:end].strip()
-    return None
+    return text.strip().replace("“", "").replace("”", "").replace("\"", "").replace("{", "").replace("}", "")
 
 def read_docx(file):
-    """Read a .docx file and extract data structured by tables, focusing on specific placeholders."""
+    """Read a .docx file and extract data structured by tables, focusing on proper row and column distribution."""
     doc = Document(file)
     data = []
-    
+
     # Process each table in the document
     for table in doc.tables:
-        current_data = {}
-        headers = []
-
-        for row in table.rows:
+        headers = [clean_text(cell.text) for cell in table.rows[0].cells]  # Assume first row is headers
+        for row in table.rows[1:]:  # Start processing data rows
+            row_data = {}
             for idx, cell in enumerate(row.cells):
-                extracted_text = placeholder_filter(cell.text)
-                if extracted_text:
-                    if idx >= len(headers):
-                        headers.append(extracted_text)  # Treat extracted placeholders as headers if they fit
-                    else:
-                        # Assuming each row after headers is data corresponding to those headers
-                        if headers[idx] in current_data:
-                            current_data[headers[idx]].append(extracted_text)
-                        else:
-                            current_data[headers[idx]] = [extracted_text]
-
-        if current_data:  # If data has been collected for current table
-            flattened_data = {k: ' '.join(v) for k, v in current_data.items()}  # Flatten lists to strings
-            data.append(flattened_data)
+                if idx < len(headers):  # Ensure there are no out-of-range errors
+                    header = headers[idx]
+                    row_data[header] = clean_text(cell.text)
+            if row_data:
+                data.append(row_data)
 
     return data
 
@@ -57,7 +38,7 @@ def save_to_excel(data, filename="output.xlsx"):
 
 # Streamlit user interface
 st.title('ISR Document to Excel Converter')
-st.write('Upload your ISR DOCX file and convert its content to an Excel file, focusing on placeholders within {}.')
+st.write('Upload your ISR DOCX file and convert its content to an Excel file, organized by distinct rows and columns.')
 
 uploaded_file = st.file_uploader("Choose a DOCX file", type="docx")
 
