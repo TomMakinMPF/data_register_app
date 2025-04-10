@@ -4,30 +4,34 @@ import pandas as pd
 import io
 
 def clean_text(text):
-    """Utility function to clean text by removing unwanted characters."""
-    return text.strip().replace("“", "").replace("”", "").replace("\"", "")
+    """Utility function to clean text by removing unwanted characters and trimming."""
+    return text.strip().replace("{", "").replace("}", "").replace("“", "").replace("”", "").replace("\"", "")
 
 def read_docx(file):
-    """Read a .docx file from a file-like object and extract data for each page or section."""
+    """Read a .docx file and extract data structured by tables, focusing on specific placeholders."""
     doc = Document(file)
     data = []
-    current_data = {}
-
+    
+    # Process each table in the document
     for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                text = clean_text(cell.text)
-                if ':' in text:  # Check for key-value pairs
-                    key, value = text.split(':', 1)
-                    current_data[clean_text(key)] = clean_text(value)
-                elif text and current_data:  # Non-empty text indicates possible new section
-                    # Save the previous section and start a new one
-                    data.append(current_data)
-                    current_data = {}
+        current_data = {}
+        headers = [clean_text(cell.text) for cell in table.rows[0].cells]  # Assume first row is headers
 
-    # Append the last section if it exists
-    if current_data:
-        data.append(current_data)
+        for row in table.rows[1:]:  # Skip header row
+            for idx, cell in enumerate(row.cells):
+                if idx >= len(headers):  # Avoid index error if there are more cells than headers
+                    continue
+                key = headers[idx]
+                value_list = [clean_text(x) for x in cell.text.split('\n')]  # Split values by new lines
+                # Append values or create a list of values under each header
+                if key in current_data:
+                    current_data[key].extend(value_list)
+                else:
+                    current_data[key] = value_list
+
+        # Append the dictionary of the current table to the data list
+        if current_data:
+            data.append(current_data)
 
     return data
 
@@ -43,7 +47,7 @@ def save_to_excel(data, filename="output.xlsx"):
 
 # Streamlit user interface
 st.title('ISR Document to Excel Converter')
-st.write('Upload your ISR DOCX file and convert its content to an Excel file, with each page/section as a new row.')
+st.write('Upload your ISR DOCX file and convert its content to an Excel file, with each table as a new row.')
 
 uploaded_file = st.file_uploader("Choose a DOCX file", type="docx")
 
@@ -66,4 +70,3 @@ if uploaded_file is not None:
         
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
-
