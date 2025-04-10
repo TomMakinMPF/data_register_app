@@ -5,40 +5,37 @@ import io
 
 def clean_text(text):
     """Utility function to clean text by removing unwanted characters and trimming."""
-    return text.strip().replace("“", "").replace("”", "").replace("\"", "")
+    return text.strip().replace("“", "").replace("”", "").replace("\"", "").replace("{", "").replace("}", "")
+
+def extract_data_from_cell(cell):
+    """Extracts text contained within curly braces, indicating placeholders."""
+    import re
+    pattern = r'\{([^}]*)\}'  # Pattern to find text within {}
+    return re.findall(pattern, cell.text)
 
 def read_docx(file):
-    """Read a .docx file and extract data structured by sections or pages."""
+    """Read a .docx file and extract data structured by tables, focusing on placeholders."""
     doc = Document(file)
     data = []
-    current_section = {}
-    section_headers = set()
-
-    # Process each table in the document
+    headers_found = False
+    headers = []
+    
     for table in doc.tables:
+        current_section = {}
         for row in table.rows:
-            for cell in row.cells:
-                text = clean_text(cell.text)
-                # Splitting entries that appear to be key-value based
-                if ':' in text:
-                    key, value = map(clean_text, text.split(':', 1))
-                else:
-                    key, value = text, None
-
-                if key in section_headers:
-                    # If key is repeated, start a new section
-                    if current_section:
-                        data.append(current_section)
-                    current_section = {}
-                    section_headers.clear()
-
-                current_section[key] = value if value else key
-                section_headers.add(key)
-
-        # Append the last section if not empty
+            row_data = [extract_data_from_cell(cell) for cell in row.cells if extract_data_from_cell(cell)]
+            if not headers_found and row_data:
+                headers = [item for sublist in row_data for item in sublist]  # Flatten list
+                headers_found = True
+                continue
+            if headers and row_data:
+                for idx, cell_data in enumerate(row_data):
+                    if idx < len(headers):
+                        current_section[headers[idx]] = ' '.join(cell_data)  # Join data points into one string per cell
+                
         if current_section:
             data.append(current_section)
-            current_section = {}  # Reset for the next table
+        headers_found = False  # Reset headers for next table
 
     return data
 
@@ -54,7 +51,7 @@ def save_to_excel(data, filename="output.xlsx"):
 
 # Streamlit user interface
 st.title('ISR Document to Excel Converter')
-st.write('Upload your ISR DOCX file and convert its content to an Excel file, organized by distinct sections.')
+st.write('Upload your ISR DOCX file and convert its content to an Excel file, organizing data by placeholders.')
 
 uploaded_file = st.file_uploader("Choose a DOCX file", type="docx")
 
