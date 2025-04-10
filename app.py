@@ -5,32 +5,36 @@ import io
 
 def clean_text(text):
     """Utility function to clean text by removing unwanted characters."""
-    return text.replace("â€œ", "").replace("â€", "").replace("\"", "").strip()
+    return text.strip().replace("“", "").replace("”", "").replace("\"", "")
 
 def read_docx(file):
-    """Read a .docx file from a file-like object and return contents as a structured dictionary."""
+    """Read a .docx file from a file-like object and extract data for each page or section."""
     doc = Document(file)
-    data = {}
+    data = []
+    current_data = {}
+
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 text = clean_text(cell.text)
-                # Split on newlines to separate multiple entries in a single cell, if applicable
-                entries = text.split('\n')
-                for entry in entries:
-                    key, value = entry.split(':', 1) if ':' in entry else (entry, '')
-                    key = key.strip()
-                    value = value.strip()
-                    if key in data:
-                        data[key].append(value)
-                    else:
-                        data[key] = [value]
+                if ':' in text:  # Check for key-value pairs
+                    key, value = text.split(':', 1)
+                    current_data[clean_text(key)] = clean_text(value)
+                elif text and current_data:  # Non-empty text indicates possible new section
+                    # Save the previous section and start a new one
+                    data.append(current_data)
+                    current_data = {}
+
+    # Append the last section if it exists
+    if current_data:
+        data.append(current_data)
+
     return data
 
 def save_to_excel(data, filename="output.xlsx"):
-    """Convert dictionary of lists to an Excel file and save to a file-like object."""
+    """Convert list of dictionaries to an Excel file and save to a file-like object."""
     if data:
-        df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in data.items()]))
+        df = pd.DataFrame(data)
         excel_file = io.BytesIO()
         df.to_excel(excel_file, index=False, engine='openpyxl')
         excel_file.seek(0)
@@ -39,7 +43,7 @@ def save_to_excel(data, filename="output.xlsx"):
 
 # Streamlit user interface
 st.title('ISR Document to Excel Converter')
-st.write('Upload your ISR DOCX file and convert its content to an Excel file, organized by columns.')
+st.write('Upload your ISR DOCX file and convert its content to an Excel file, with each page/section as a new row.')
 
 uploaded_file = st.file_uploader("Choose a DOCX file", type="docx")
 
@@ -62,3 +66,4 @@ if uploaded_file is not None:
         
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
+
